@@ -64,6 +64,10 @@ class TreatmentDataBaseInConsole(WorkDataBase):
         headers = ["Project", "Villa", "Apartment", "Townhouse", "Penthouse"]
         self.__execute_and_print(select_query, headers)
 
+    def print_serch_project(self, select_query: sql.SQL):
+        headers = ["Project", "Type House", "Beds", "Area", "Price", "Date"]
+        self.__execute_and_print(select_query, headers)
+
 
 def main():
     create_table_query = sql.SQL('''
@@ -105,6 +109,7 @@ def main():
                                             GROUP BY unit
                                             ORDER BY unit ASC;
                                             ''')
+
     work_db = WorkDataBase()
     work_db.create_data_base(create_table_query)
     csv_file_path = 'axcapital_09082023.csv'
@@ -116,6 +121,11 @@ def main():
     treatment.print_big_square_project(select_big_square_project)
     treatment.print_all_villa_in_console(select_all_villa)
     treatment.print_all_project_in_console(select_all_project_type_house)
+    choice = str(input("Enter project: "))
+    search_all_project_by_project = sql.SQL(f'''SELECT unit, utype, beds, area, price, date 
+                                                FROM project
+                                                WHERE unit = '{choice}';''')
+    treatment.print_serch_project(search_all_project_by_project)
 
 
 if __name__ == "__main__":
