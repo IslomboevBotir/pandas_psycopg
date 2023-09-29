@@ -31,7 +31,10 @@ class WorkDataBase:
         engine = create_engine(connection_string)
         read_csv.columns = map(str.lower, read_csv.columns)
         read_csv['date'] = read_csv['date'].apply(lambda value: datetime.strptime(value, '%d.%M.%Y').strftime('%Y-%M-%d'))
-        read_csv.to_sql("project", engine, if_exists='append', index=False)
+        existing_data_query = f"SELECT w_id FROM project WHERE w_id IN (w_id)"
+        existing_data = pd.read_sql_query(existing_data_query, engine, params={"w_id": tuple(read_csv['w_id'])})
+        new_data = read_csv[~read_csv['w_id'].isin(existing_data['w_id'])]
+        new_data.to_sql("project", engine, if_exists='append', index=False)
 
     def __del__(self):
         self.connection.close()
@@ -115,7 +118,6 @@ def main():
     csv_file_path = 'axcapital_09082023.csv'
     csv_data = work_db.open_csv(csv_file_path)
     work_db.parse_in_data_base(csv_data)
-
     treatment = TreatmentDataBaseInConsole()
     treatment.print_expensive_project(select_expensive_project)
     treatment.print_big_square_project(select_big_square_project)
