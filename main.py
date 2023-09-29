@@ -124,7 +124,7 @@ def main():
     choice = str(input("Enter project: "))
     search_all_project_by_project = sql.SQL(f'''SELECT unit, utype, beds, area, price, date 
                                                 FROM project
-                                                WHERE unit = '{choice}';''')
+                                                WHERE LOWER(unit) = LOWER('{choice}');''')
     treatment.print_serch_project(search_all_project_by_project)
 
 
