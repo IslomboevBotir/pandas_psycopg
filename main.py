@@ -75,7 +75,7 @@ class TreatmentDataBaseInConsole(WorkDataBase):
         self.__execute_and_print(select_query, headers)
 
     def print_all_project_in_console(self, select_query: sql.SQL):
-        headers = ["Project", "Villa", "Apartment", "Townhouse", "Penthouse"]
+        headers = ["Quantity", "Project", "Type Project"]
         self.__execute_and_print(select_query, headers)
 
     def print_search_project(self, select_query: sql.SQL):
