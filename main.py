@@ -26,15 +26,26 @@ class WorkDataBase:
     def open_csv(self, csv_file_path: Path | str) -> pd.DataFrame:
         return pd.read_csv(csv_file_path)
 
-    def parse_in_data_base(self, read_csv: pd.DataFrame):
-        connection_string = f'postgresql://{"projectdb"}:{"projectdb"}@{"localhost"}:{"5432"}/{"projectdb"}'
-        engine = create_engine(connection_string)
-        read_csv.columns = map(str.lower, read_csv.columns)
-        read_csv['date'] = read_csv['date'].apply(lambda value: datetime.strptime(value, '%d.%M.%Y').strftime('%Y-%M-%d'))
-        existing_data_query = f"SELECT w_id FROM project WHERE w_id IN (w_id)"
-        existing_data = pd.read_sql_query(existing_data_query, engine, params={"w_id": tuple(read_csv['w_id'])})
-        new_data = read_csv[~read_csv['w_id'].isin(existing_data['w_id'])]
-        new_data.to_sql("project", engine, if_exists='append', index=False)
+    def parse_in_data_base(self, read_csv: pd.DataFrame, query: sql.SQL):
+        csv_in_dict = read_csv.to_dict(orient="records")
+
+        cursor = self.connection.cursor()
+        cursor.execute(f'SELECT w_id FROM project')
+        win_in_db = cursor.fetchall()
+        wid_in_db_in_list = [i[0] for i in win_in_db]
+
+        filtered_csv_in_dict = [date for date in csv_in_dict if date['W_ID'] not in wid_in_db_in_list]
+
+        for date in csv_in_dict:
+            date['DATE'] = datetime.strptime(date['DATE'], '%d.%M.%Y').strftime('%Y-%M-%d')
+            if pd.isna(date['IS_MODE']):
+                date['IS_MODE'] = None
+            if pd.isna(date['IS_DEL']):
+                date['IS_DEL'] = None
+
+        cursor.executemany(query, [tuple(i.values()) for i in filtered_csv_in_dict])
+
+        self.connection.commit()
 
     def __del__(self):
         self.connection.close()
@@ -67,7 +78,7 @@ class TreatmentDataBaseInConsole(WorkDataBase):
         headers = ["Project", "Villa", "Apartment", "Townhouse", "Penthouse"]
         self.__execute_and_print(select_query, headers)
 
-    def print_serch_project(self, select_query: sql.SQL):
+    def print_search_project(self, select_query: sql.SQL):
         headers = ["Project", "Type House", "Beds", "Area", "Price", "Date"]
         self.__execute_and_print(select_query, headers)
 
@@ -88,6 +99,8 @@ def main():
             is_del BOOLEAN
         );
         ''')
+    query_insert_in_table = sql.SQL(f"""INSERT INTO project (cid, unit, w_id, utype, beds, area, price, date, is_mode, is_del) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s )""")
     select_expensive_project = sql.SQL('''SELECT unit, utype, beds, area, price, date
                                             FROM project
                                             WHERE price = (SELECT MAX(price) from project);''')
@@ -103,31 +116,27 @@ def main():
                                 ''')
     select_all_project_type_house = sql.SQL('''
                                             SELECT
-                                                unit as Project,
-                                                COUNT(CASE WHEN utype = 'Villa' THEN 1 END) as Villa,
-                                                COUNT(CASE WHEN utype = 'Apartment' THEN 1 END) as Apartment,
-                                                COUNT(CASE WHEN  utype = 'Townhouse' THEN 1 END) as Townhouse,
-                                                COUNT(CASE WHEN utype = 'Penthouse' THEN 1 END ) as Penthouse
+                                                COUNT(utype) as cnt, unit, utype
                                             FROM project
-                                            GROUP BY unit
-                                            ORDER BY unit ASC;
+                                            GROUP BY unit, utype
+                                            ORDER BY cnt;
                                             ''')
 
     work_db = WorkDataBase()
     work_db.create_data_base(create_table_query)
     csv_file_path = 'axcapital_09082023.csv'
     csv_data = work_db.open_csv(csv_file_path)
-    work_db.parse_in_data_base(csv_data)
+    work_db.parse_in_data_base(csv_data, query_insert_in_table)
     treatment = TreatmentDataBaseInConsole()
     treatment.print_expensive_project(select_expensive_project)
     treatment.print_big_square_project(select_big_square_project)
     treatment.print_all_villa_in_console(select_all_villa)
     treatment.print_all_project_in_console(select_all_project_type_house)
     choice = str(input("Enter project: "))
-    search_all_project_by_project = sql.SQL(f'''SELECT unit, utype, beds, area, price, date 
+    search_all_project_by_project = sql.SQL(f"""SELECT unit, utype, beds, area, price, date 
                                                 FROM project
-                                                WHERE LOWER(unit) = LOWER('{choice}');''')
-    treatment.print_serch_project(search_all_project_by_project)
+                                                WHERE unit ilike '%{choice}%';""")
+    treatment.print_search_project(search_all_project_by_project)
 
 
 if __name__ == "__main__":
