@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import List
 import pandas as pd
-from sqlalchemy import create_engine
 from datetime import datetime
 import psycopg2
 from psycopg2 import sql
@@ -28,24 +27,19 @@ class WorkDataBase:
 
     def parse_in_data_base(self, read_csv: pd.DataFrame, query: sql.SQL):
         csv_in_dict = read_csv.to_dict(orient="records")
-
-        cursor = self.connection.cursor()
-        cursor.execute(f'SELECT w_id FROM project')
-        win_in_db = cursor.fetchall()
-        wid_in_db_in_list = [i[0] for i in win_in_db]
-
-        filtered_csv_in_dict = [date for date in csv_in_dict if date['W_ID'] not in wid_in_db_in_list]
-
-        for date in csv_in_dict:
-            date['DATE'] = datetime.strptime(date['DATE'], '%d.%M.%Y').strftime('%Y-%M-%d')
-            if pd.isna(date['IS_MODE']):
-                date['IS_MODE'] = None
-            if pd.isna(date['IS_DEL']):
-                date['IS_DEL'] = None
-
-        cursor.executemany(query, [tuple(i.values()) for i in filtered_csv_in_dict])
-
-        self.connection.commit()
+        count = 0
+        with self.connection.cursor() as cursor:
+            for data in csv_in_dict:
+                data['DATE'] = datetime.strptime(data['DATE'], '%d.%M.%Y').strftime('%Y-%M-%d')
+                if pd.isna(data['IS_MODE']):
+                    data['IS_MODE'] = None
+                if pd.isna(data['IS_DEL']):
+                    data['IS_DEL'] = None
+                cursor.execute(query, tuple(data.values()))
+                count += 1
+                if count % 10 == 0:
+                    self.connection.commit()
+            self.connection.commit()
 
     def __del__(self):
         self.connection.close()
@@ -89,7 +83,7 @@ def main():
             id BIGSERIAL PRIMARY KEY,
             cid INT,
             unit VARCHAR(255),
-            w_id INT,
+            w_id INT UNIQUE ,
             utype VARCHAR(255),
             beds INT,
             area FLOAT,
@@ -100,7 +94,18 @@ def main():
         );
         ''')
     query_insert_in_table = sql.SQL(f"""INSERT INTO project (cid, unit, w_id, utype, beds, area, price, date, is_mode, is_del) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s )""")
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s )
+                        ON CONFLICT (w_id) DO UPDATE SET 
+                        cid = EXCLUDED.cid,
+                        unit = EXCLUDED.unit,
+                        utype = EXCLUDED.utype,
+                        beds = EXCLUDED.beds,
+                        area = EXCLUDED.area,
+                        price = EXCLUDED.price,
+                        date = EXCLUDED.date,
+                        is_mode = EXCLUDED.is_mode,
+                        is_del = EXCLUDED.is_del
+                        """)
     select_expensive_project = sql.SQL('''SELECT unit, utype, beds, area, price, date
                                             FROM project
                                             WHERE price = (SELECT MAX(price) from project);''')
@@ -135,7 +140,7 @@ def main():
     choice = str(input("Enter project: "))
     search_all_project_by_project = sql.SQL(f"""SELECT unit, utype, beds, area, price, date 
                                                 FROM project
-                                                WHERE unit ilike '%{choice}%';""")
+                                                WHERE unit ilike '%{choice}%'""")
     treatment.print_search_project(search_all_project_by_project)
 
 
