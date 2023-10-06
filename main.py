@@ -93,7 +93,8 @@ def main():
             is_del BOOLEAN
         );
         ''')
-    query_insert_in_table = sql.SQL(f"""INSERT INTO project (cid, unit, w_id, utype, beds, area, price, date, is_mode, is_del) 
+    query_insert_in_table = sql.SQL(f"""
+                        INSERT INTO project (cid, unit, w_id, utype, beds, area, price, date, is_mode, is_del) 
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s )
                         ON CONFLICT (w_id) DO UPDATE SET 
                         cid = EXCLUDED.cid,
@@ -106,25 +107,28 @@ def main():
                         is_mode = EXCLUDED.is_mode,
                         is_del = EXCLUDED.is_del
                         """)
-    select_expensive_project = sql.SQL('''SELECT unit, utype, beds, area, price, date
+    select_expensive_project = sql.SQL('''
+                                            SELECT unit, utype, beds, area, price, date
                                             FROM project
-                                            WHERE price = (SELECT MAX(price) from project);''')
-    select_big_square_project = sql.SQL('''SELECT unit, utype, beds, area, price, date
+                                            WHERE price = (SELECT MAX(price) from project)
+                                            ''')
+    select_big_square_project = sql.SQL('''
+                                            SELECT unit, utype, beds, area, price, date
                                             FROM project
-                                            WHERE area = (SELECT MAX(area) FROM project);''')
+                                            WHERE area = (SELECT MAX(area) FROM project)
+                                            ''')
     select_all_villa = sql.SQL('''
                                 SELECT unit, COUNT(*) as Count
                                 FROM project
                                 WHERE utype = 'Villa'
                                 GROUP BY unit
-                                ORDER BY Count DESC;
+                                ORDER BY Count DESC
                                 ''')
     select_all_project_type_house = sql.SQL('''
-                                            SELECT
-                                                COUNT(utype) as cnt, unit, utype
+                                            SELECT COUNT(utype) as cnt, unit, utype
                                             FROM project
                                             GROUP BY unit, utype
-                                            ORDER BY cnt;
+                                            ORDER BY cnt
                                             ''')
 
     work_db = WorkDataBase()
